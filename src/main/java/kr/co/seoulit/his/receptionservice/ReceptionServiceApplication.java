@@ -9,5 +9,5 @@ public class ReceptionServiceApplication {
     public static void main(String[] args) {
         SpringApplication.run(ReceptionServiceApplication.class, args);
     }
-
+     console.log();
 }
