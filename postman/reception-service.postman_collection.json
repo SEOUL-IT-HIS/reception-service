@@ -1,0 +1,108 @@
+{
+  "info": {
+    "name": "reception-service",
+    "description": "접수(Reception) API 테스트 시나리오. baseUrl 변수 기본값은 http://localhost:8080 입니다. 모든 응답은 개발표준가이드 11.3에 따라 { code, message, data } 포맷으로 내려옵니다.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8080" },
+    { "key": "receptionId", "value": "1" }
+  ],
+  "item": [
+    {
+      "name": "1. 접수 목록조회",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/receptions?status=접수",
+          "host": ["{{baseUrl}}"],
+          "path": ["receptions"],
+          "query": [{ "key": "status", "value": "접수" }]
+        },
+        "description": "예상 응답: 200 OK\n```json\n{\n  \"code\": 200,\n  \"message\": \"SUCCESS\",\n  \"data\": [\n    {\n      \"receptionId\": 1,\n      \"patientId\": 1001,\n      \"deptId\": 10,\n      \"doctorId\": 20,\n      \"receptionNo\": \"R20260716101500123\",\n      \"receptionType\": \"외래\",\n      \"status\": \"접수\",\n      \"visitPurpose\": \"정기 진료\",\n      \"receptionDate\": \"2026-07-16T10:15:00\",\n      \"createdAt\": \"2026-07-16T10:15:00\",\n      \"updatedAt\": \"2026-07-16T10:15:00\"\n    }\n  ]\n}\n```"
+
+      },
+    {
+      "name": "2. 접수 상세조회",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/receptions/{{receptionId}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["receptions", "{{receptionId}}"]
+        },
+        "description": "예상 응답: 200 OK\n```json\n{\n  \"code\": 200,\n  \"message\": \"SUCCESS\",\n  \"data\": {\n    \"receptionId\": 1,\n    \"patientId\": 1001,\n    \"deptId\": 10,\n    \"doctorId\": 20,\n    \"receptionNo\": \"R20260716101500123\",\n    \"receptionType\": \"외래\",\n    \"status\": \"접수\",\n    \"visitPurpose\": \"정기 진료\",\n    \"receptionDate\": \"2026-07-16T10:15:00\",\n    \"createdAt\": \"2026-07-16T10:15:00\",\n    \"updatedAt\": \"2026-07-16T10:15:00\",\n    \"emergencyInfo\": null,\n    \"cancelInfo\": null,\n    \"statusHistories\": [\n      {\n        \"historyId\": 1,\n        \"prevStatus\": null,\n        \"newStatus\": \"접수\",\n        \"changedBy\": null,\n        \"changedAt\": \"2026-07-16T10:15:00\",\n        \"reason\": \"접수 등록\"\n      }\n    ]\n  }\n}\n```\n\n존재하지 않는 ID 조회 시: 404 Not Found\n```json\n{\n  \"code\": 404,\n  \"message\": \"RCP001\",\n  \"data\": null\n}\n```\n(RCP001 = \"접수 정보를 찾을 수 없습니다.\", features/reception/messages.ts 에서 문구로 변환)"
+      }
+    },
+    {
+      "name": "3. 접수 등록 (외래)",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": {
+          "raw": "{{baseUrl}}/receptions",
+          "host": ["{{baseUrl}}"],
+          "path": ["receptions"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"patientId\": 1001,\n  \"deptId\": 10,\n  \"doctorId\": 20,\n  \"receptionType\": \"외래\",\n  \"visitPurpose\": \"정기 진료\",\n  \"receptionDate\": \"2026-07-16T10:15:00\"\n}"
+        },
+        "description": "예상 응답: 201 Created\n```json\n{\n  \"code\": 201,\n  \"message\": \"SUCCESS\",\n  \"data\": {\n    \"receptionId\": 1,\n    \"patientId\": 1001,\n    \"deptId\": 10,\n    \"doctorId\": 20,\n    \"receptionNo\": \"R20260716101500123\",\n    \"receptionType\": \"외래\",\n    \"status\": \"접수\",\n    \"visitPurpose\": \"정기 진료\",\n    \"receptionDate\": \"2026-07-16T10:15:00\",\n    \"createdAt\": \"2026-07-16T10:15:00\",\n    \"updatedAt\": \"2026-07-16T10:15:00\",\n    \"emergencyInfo\": null,\n    \"cancelInfo\": null,\n    \"statusHistories\": [\n      { \"historyId\": 1, \"prevStatus\": null, \"newStatus\": \"접수\", \"changedBy\": null, \"changedAt\": \"2026-07-16T10:15:00\", \"reason\": \"접수 등록\" }\n    ]\n  }\n}\n```"
+      }
+    },
+    {
+      "name": "3-1. 접수 등록 (응급)",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": {
+          "raw": "{{baseUrl}}/receptions",
+          "host": ["{{baseUrl}}"],
+          "path": ["receptions"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"patientId\": 1002,\n  \"deptId\": 11,\n  \"doctorId\": 21,\n  \"receptionType\": \"응급\",\n  \"visitPurpose\": \"응급실 내원\",\n  \"receptionDate\": \"2026-07-16T11:00:00\",\n  \"emergencyInfo\": {\n    \"ktasLevel\": 2,\n    \"arrivalMethod\": \"119구급대\",\n    \"chiefComplaint\": \"흉통 및 호흡곤란\",\n    \"consciousnessLevel\": \"Alert\",\n    \"triageTime\": \"2026-07-16T11:02:00\"\n  }\n}"
+        },
+        "description": "예상 응답: 201 Created (data.emergencyInfo가 함께 반환됨)\n\nreceptionType이 \"응급\"인데 emergencyInfo를 생략하면: 400 Bad Request\n```json\n{\n  \"code\": 400,\n  \"message\": \"RCP003\",\n  \"data\": null\n}\n```\n(RCP003 = \"접수유형이 응급인 경우 응급접수정보는 필수입니다.\")"
+      }
+    },
+    {
+      "name": "4. 접수 수정 (상태 변경)",
+      "request": {
+        "method": "PUT",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": {
+          "raw": "{{baseUrl}}/receptions/{{receptionId}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["receptions", "{{receptionId}}"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"deptId\": 10,\n  \"doctorId\": 20,\n  \"visitPurpose\": \"정기 진료\",\n  \"status\": \"진료중\",\n  \"reason\": \"진료 시작\"\n}"
+        },
+        "description": "예상 응답: 200 OK (data.status가 \"진료중\"으로 변경되고 statusHistories에 이력이 추가됨)\n\n존재하지 않는 ID 수정 시: 404 Not Found, message: \"RCP001\"\n필수값 누락 등 검증 실패 시: 400 Bad Request, message: \"RCP004\""
+      }
+    },
+    {
+      "name": "5. 접수 취소",
+      "request": {
+        "method": "DELETE",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "url": {
+          "raw": "{{baseUrl}}/receptions/{{receptionId}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["receptions", "{{receptionId}}"]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"cancelReasonCode\": \"PATIENT_REQUEST\",\n  \"cancelReasonDetail\": \"환자 개인사정으로 인한 취소\",\n  \"cancelledBy\": \"접수담당자A\"\n}"
+        },
+        "description": "예상 응답: 200 OK\n```json\n{ \"code\": 200, \"message\": \"SUCCESS\", \"data\": null }\n```\n\n이미 취소된 접수를 다시 취소 시도하면: 409 Conflict\n```json\n{\n  \"code\": 409,\n  \"message\": \"RCP002\",\n  \"data\": null\n}\n```\n(RCP002 = \"이미 취소된 접수입니다.\")"
+      }
+    }
+  ]
+}

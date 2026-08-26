@@ -1,4 +1,4 @@
-package kr.co.seoulit.receptionservice;
+package kr.co.seoulit.his.receptionservice;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
