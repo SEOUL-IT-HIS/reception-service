@@ -28,7 +28,7 @@ public interface ReceptionService {
     /**
      * 접수 상세 조회
      */
-    ReceptionDetailResponsedto getReception(Long receptionId);
+    ReceptionDetailResponsedto getReception(String receptionId);
 
     /**
      * 응급접수 등록
@@ -36,14 +36,19 @@ public interface ReceptionService {
     EmergencyReceptionResponsedto registerEmergencyReception(EmergencyReceptionRequestdto request);
 
     /**
+     * 응급접수 목록 조회 (당일 건, 취소 제외)
+     */
+    List<EmergencyReceptionResponsedto> getEmergencyReceptionList();
+
+    /**
      * 접수 상태 변경
      */
-    void changeReceptionStatus(Long receptionId, ReceptionStatusChangeRequestdto request);
+    void changeReceptionStatus(String receptionId, ReceptionStatusChangeRequestdto request);
 
     /**
      * 접수 취소
      */
-    void cancelReception(Long receptionId, ReceptionCancelRequestdto request);
+    void cancelReception(String receptionId, ReceptionCancelRequestdto request);
 
     /**
      * 진료과 목록 조회
@@ -53,6 +58,6 @@ public interface ReceptionService {
     /**
      * 진료과별 의사 목록 조회
      */
-    ApiResponse<List<DoctorResponsedto>> getDoctorsByDepartment(Long deptId);
+    ApiResponse<List<DoctorResponsedto>> getDoctorsByDepartment(String deptId);
 
 }

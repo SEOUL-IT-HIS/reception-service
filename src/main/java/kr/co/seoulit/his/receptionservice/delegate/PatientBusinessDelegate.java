@@ -40,12 +40,18 @@ public class PatientBusinessDelegate {
 
     /**
      * 환자 상세 조회
+     * CB2 는 상세도 {code,message,data} 로 감싸서 응답한다. (경로: GET /api/patient/{patientId})
      */
     public PatientDetailResponsedto getPatientById(String patientId) {
-        return restTemplate.getForObject(
-                cb2Url + "/patients/{patientId}",
-                PatientDetailResponsedto.class,
-                patientId);
+        ParameterizedTypeReference<ApiResponse<PatientDetailResponsedto>> responseType = new ParameterizedTypeReference<>() {
+        };
+        ApiResponse<PatientDetailResponsedto> response = restTemplate.exchange(
+                cb2Url + "/api/patient/{patientId}",
+                HttpMethod.GET,
+                null,
+                responseType,
+                patientId).getBody();
+        return response != null ? response.data() : null;
     }
 
 }

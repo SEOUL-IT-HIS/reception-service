@@ -4,10 +4,7 @@ import java.time.LocalDateTime;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.SequenceGenerator;
 import jakarta.persistence.Table;
 
 import lombok.AllArgsConstructor;
@@ -26,19 +23,14 @@ import lombok.NoArgsConstructor;
 @Builder
 public class ReceptionStatusHistoryEntity {
 
-    /** 상태변경이력ID (PK) */
+    /** 상태변경이력ID (PK, UUID) */
     @Id
-    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "SEQ_RECEPTION_STATUS_HISTORY_GENERATOR")
-    @SequenceGenerator(
-            name = "SEQ_RECEPTION_STATUS_HISTORY_GENERATOR",
-            sequenceName = "SEQ_RECEPTION_STATUS_HISTORY",
-            allocationSize = 1)
-    @Column(name = "HISTORY_ID")
-    private Long historyId;
+    @Column(name = "HISTORY_ID", length = 36)
+    private String historyId;
 
     /** 접수ID */
-    @Column(name = "RECEPTION_ID", nullable = false)
-    private Long receptionId;
+    @Column(name = "RECEPTION_ID", nullable = false, length = 36)
+    private String receptionId;
 
     /** 변경 전 상태 */
     @Column(name = "PREV_STATUS")

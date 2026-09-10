@@ -21,13 +21,13 @@ import lombok.Setter;
 public class ReceptionDetailResponsedto {
 
     /** 접수 ID */
-    private Long receptionId;
+    private String receptionId;
 
     /** 환자 ID (CB2 UUID) */
     private String patientId;
 
     /** 진료과 ID */
-    private Long deptId;
+    private String deptId;
 
     /** 진료과명 (공통코드 캐시 DEPT_CD 로 채움) */
     private String deptName;

@@ -23,6 +23,6 @@ public class DoctorResponsedto {
     private String doctorName;
 
     /** 소속 진료과 ID */
-    private Long deptId;
+    private String deptId;
 
 }

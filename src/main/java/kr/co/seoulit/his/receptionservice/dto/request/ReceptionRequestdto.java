@@ -27,7 +27,7 @@ public class ReceptionRequestdto {
     private String patientId;
 
     /** 진료과 ID */
-    private Long deptId;
+    private String deptId;
 
     /** 담당 의사 ID */
     private String doctorId;

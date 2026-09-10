@@ -16,6 +16,21 @@ spring:
         format_sql: true
         default_batch_fetch_size: 100
     show-sql: true
+  kafka:
+    bootstrap-servers: 192.168.1.126:9092
+    producer:
+      acks: all
+      retries: 3
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        enable.idempotence: true
+        spring.json.add.type.headers: false
+
+mybatis:
+  mapper-locations: classpath:mapper/**/*.xml
+  configuration:
+    map-underscore-to-camel-case: true
 
 springdoc:
   api-docs:
@@ -30,6 +45,22 @@ cb2:
 
 admin:
   url: http://192.168.1.128:8080
+
+emergency:
+  # 응급 서비스(emergency-service) base URL
+  url: http://192.168.1.152:8085
+  intake:
+    # ER 접수 등록 시 응급 서비스로 REST 전송 on/off. false 면 Delegate/Listener 빈이 생성되지 않는다.
+    enabled: true
+
+outpatient:
+  kafka:
+    # 외래로의 Kafka 발행 기능 on/off. false 면 Producer/Listener 빈이 아예 생성되지 않는다.
+    enabled: true
+    # 외래 서비스로 "외래 접수 등록" 이벤트를 전달하는 토픽
+    topic: outpatient-patient-daily-list
+    # 개발환경에서 앱 기동 시 토픽 자동생성 여부 (운영은 인프라에서 사전 생성 후 false)
+    auto-create-topic: true
 
 logging:
   level:

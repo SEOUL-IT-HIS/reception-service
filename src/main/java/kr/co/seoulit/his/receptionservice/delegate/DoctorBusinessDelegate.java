@@ -26,7 +26,7 @@ public class DoctorBusinessDelegate {
     /**
      * 진료과별 의사 목록 조회
      */
-    public ApiResponse<List<DoctorResponsedto>> getDoctorsByDepartment(Long deptId) {
+    public ApiResponse<List<DoctorResponsedto>> getDoctorsByDepartment(String deptId) {
         ParameterizedTypeReference<ApiResponse<List<DoctorResponsedto>>> responseType = new ParameterizedTypeReference<>() {
         };
         return restTemplate.exchange(

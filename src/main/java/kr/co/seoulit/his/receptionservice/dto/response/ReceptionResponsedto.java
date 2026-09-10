@@ -20,7 +20,7 @@ import lombok.Setter;
 public class ReceptionResponsedto {
 
     /** 접수 ID */
-    private Long receptionId;
+    private String receptionId;
 
     /** 접수번호 */
     private String receptionNo;
@@ -29,7 +29,7 @@ public class ReceptionResponsedto {
     private String patientId;
 
     /** 진료과 ID */
-    private Long deptId;
+    private String deptId;
 
     /** 진료과명 (admin-service 조회 결과로 채움) */
     private String deptName;

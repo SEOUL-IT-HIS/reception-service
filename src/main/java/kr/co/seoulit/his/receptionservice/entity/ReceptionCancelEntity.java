@@ -4,10 +4,7 @@ import java.time.LocalDateTime;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.SequenceGenerator;
 import jakarta.persistence.Table;
 
 import lombok.AllArgsConstructor;
@@ -26,19 +23,14 @@ import lombok.NoArgsConstructor;
 @Builder
 public class ReceptionCancelEntity {
 
-    /** 접수취소ID (PK) */
+    /** 접수취소ID (PK, UUID) */
     @Id
-    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "SEQ_RECEPTION_CANCEL_GENERATOR")
-    @SequenceGenerator(
-            name = "SEQ_RECEPTION_CANCEL_GENERATOR",
-            sequenceName = "SEQ_RECEPTION_CANCEL",
-            allocationSize = 1)
-    @Column(name = "CANCEL_ID")
-    private Long cancelId;
+    @Column(name = "CANCEL_ID", length = 36)
+    private String cancelId;
 
     /** 접수ID */
-    @Column(name = "RECEPTION_ID", nullable = false)
-    private Long receptionId;
+    @Column(name = "RECEPTION_ID", nullable = false, length = 36)
+    private String receptionId;
 
     /** 취소사유코드 */
     @Column(name = "CANCEL_REASON_CODE")

@@ -7,7 +7,7 @@ import org.springframework.http.HttpStatus;
  */
 public class ReceptionStatusUnchangedException extends ReceptionException {
 
-    public ReceptionStatusUnchangedException(Long receptionId, String status) {
+    public ReceptionStatusUnchangedException(String receptionId, String status) {
         super(HttpStatus.CONFLICT, "RCP005",
                 "현재 상태와 동일한 상태로 변경할 수 없습니다. receptionId=" + receptionId + ", status=" + status);
     }

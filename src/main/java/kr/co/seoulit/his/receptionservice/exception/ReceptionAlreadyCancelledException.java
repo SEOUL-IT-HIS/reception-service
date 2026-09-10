@@ -7,7 +7,7 @@ import org.springframework.http.HttpStatus;
  */
 public class ReceptionAlreadyCancelledException extends ReceptionException {
 
-    public ReceptionAlreadyCancelledException(Long receptionId) {
+    public ReceptionAlreadyCancelledException(String receptionId) {
         super(HttpStatus.CONFLICT, "RCP002", "이미 취소된 접수입니다. receptionId=" + receptionId);
     }
 }

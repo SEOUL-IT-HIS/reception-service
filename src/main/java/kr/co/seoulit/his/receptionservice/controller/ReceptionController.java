@@ -58,7 +58,7 @@ public class ReceptionController {
          */
         @GetMapping("/{receptionId}")
         public ResponseEntity<ApiResponse<ReceptionDetailResponsedto>> getReception(
-                        @PathVariable Long receptionId) {
+                        @PathVariable String receptionId) {
 
                 return ResponseEntity.ok(
                                 ApiResponse.success(HttpStatus.OK.value(), receptionService.getReception(receptionId)));
@@ -76,11 +76,21 @@ public class ReceptionController {
         }
 
         /**
+         * 응급접수 목록 조회 (당일 건, 취소 제외)
+         */
+        @GetMapping("/emergency")
+        public ResponseEntity<ApiResponse<List<EmergencyReceptionResponsedto>>> getEmergencyReceptionList() {
+
+                return ResponseEntity.ok(
+                                ApiResponse.success(HttpStatus.OK.value(), receptionService.getEmergencyReceptionList()));
+        }
+
+        /**
          * 접수 상태 변경
          */
         @PatchMapping("/{receptionId}/status")
         public ResponseEntity<String> changeReceptionStatus(
-                        @PathVariable Long receptionId,
+                        @PathVariable String receptionId,
                         @RequestBody ReceptionStatusChangeRequestdto request) {
 
                 receptionService.changeReceptionStatus(receptionId, request);
@@ -93,7 +103,7 @@ public class ReceptionController {
          */
         @PatchMapping("/{receptionId}/cancel")
         public ResponseEntity<ApiResponse<Void>> cancelReception(
-                        @PathVariable Long receptionId,
+                        @PathVariable String receptionId,
                         @RequestBody ReceptionCancelRequestdto request) {
 
                 receptionService.cancelReception(receptionId, request);
@@ -137,7 +147,7 @@ public class ReceptionController {
          */
         @GetMapping("/departments/{deptId}/doctors")
         public ResponseEntity<ApiResponse<List<DoctorResponsedto>>> getDoctorsByDepartment(
-                        @PathVariable Long deptId) {
+                        @PathVariable String deptId) {
 
                 return ResponseEntity.ok(
                                 receptionService.getDoctorsByDepartment(deptId));

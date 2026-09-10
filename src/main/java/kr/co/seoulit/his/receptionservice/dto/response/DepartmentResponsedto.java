@@ -16,8 +16,8 @@ import lombok.Setter;
 @Builder
 public class DepartmentResponsedto {
 
-    /** 진료과 ID */
-    private Long deptId;
+    /** 진료과 ID (DEPT_CD 공통코드의 codeValue) */
+    private String deptId;
 
     /** 진료과명 */
     private String deptName;

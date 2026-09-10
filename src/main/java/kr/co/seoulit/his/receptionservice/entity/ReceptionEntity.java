@@ -4,10 +4,7 @@ import java.time.LocalDateTime;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.SequenceGenerator;
 import jakarta.persistence.Table;
 
 import lombok.AllArgsConstructor;
@@ -26,23 +23,18 @@ import lombok.NoArgsConstructor;
 @Builder
 public class ReceptionEntity {
 
-    /** 접수ID (PK) */
+    /** 접수ID (PK, UUID) */
     @Id
-    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "SEQ_RECEPTION_GENERATOR")
-    @SequenceGenerator(
-            name = "SEQ_RECEPTION_GENERATOR",
-            sequenceName = "SEQ_RECEPTION",
-            allocationSize = 1)
-    @Column(name = "RECEPTION_ID")
-    private Long receptionId;
+    @Column(name = "RECEPTION_ID", length = 36)
+    private String receptionId;
 
     /** 환자ID (CB2 UUID) */
-    @Column(name = "PATIENT_ID", nullable = false, length = 50)
+    @Column(name = "PATIENT_ID", nullable = false, length = 36)
     private String patientId;
 
-    /** 진료과ID */
-    @Column(name = "DEPT_ID")
-    private Long deptId;
+    /** 진료과ID (DEPT_CD 공통코드의 codeValue) */
+    @Column(name = "DEPT_ID", length = 36)
+    private String deptId;
 
     /** 의사ID */
     @Column(name = "DOCTOR_ID", length = 36)
