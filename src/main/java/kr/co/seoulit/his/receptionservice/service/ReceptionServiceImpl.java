@@ -10,6 +10,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
@@ -18,6 +21,8 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestClientException;
+import org.springframework.web.context.request.RequestAttributes;
+import org.springframework.web.context.request.RequestContextHolder;
 
 import kr.co.seoulit.his.receptionservice.cache.CommonCodeCache;
 import kr.co.seoulit.his.receptionservice.common.ApiResponse;
@@ -63,6 +68,8 @@ public class ReceptionServiceImpl implements ReceptionService {
     private static final String DEPT_CD_GROUP = "DEPT_CD";
     private static final DateTimeFormatter RECEPTION_NO_FORMAT =
             DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS");
+    /** 의사명 병렬 조회 시 진료과 1건당 최대 대기시간. admin-service가 느리거나 죽어있어도 이 이상은 안 기다린다. */
+    private static final long ADMIN_LOOKUP_TIMEOUT_SECONDS = 5;
 
     private final ReceptionRepository receptionRepository;
     private final EmergencyInfoRepository emergencyInfoRepository;
@@ -72,6 +79,7 @@ public class ReceptionServiceImpl implements ReceptionService {
     private final DoctorBusinessDelegate doctorBusinessDelegate;
     private final PatientBusinessDelegate patientBusinessDelegate;
     private final ApplicationEventPublisher eventPublisher;
+    private final ExecutorService adminLookupExecutor;
 
     /**
      * 접수 등록
@@ -152,11 +160,11 @@ public class ReceptionServiceImpl implements ReceptionService {
         // 트랜잭션 커밋 후 응급 서비스로 접수내역을 REST 전송하도록 예약한다.
         // (실제 전송은 EmergencyReceptionIntakeListener 의 @TransactionalEventListener(AFTER_COMMIT) 에서 수행)
         eventPublisher.publishEvent(new EmergencyReceptionRegisteredInternalEvent(
-                reception.getReceptionNo(),
+                reception.getReceptionId(),
                 reception.getPatientId(),
-                patientName,
                 request.getVisitMethod(),
                 reception.getReceptionDate(),
+                reception.getMemo(),
                 request.getChiefComplaint()));
 
         return toEmergencyResponseDto(reception, emergencyInfo, patientName,
@@ -251,15 +259,18 @@ public class ReceptionServiceImpl implements ReceptionService {
     }
 
     /**
-     * 접수 목록 조회 (접수홈용 — 응급접수 제외)
+     * 접수 목록 조회 (접수홈용 — 당일 등록 건만, 응급접수 제외)
      * - 진료과명(공통코드 캐시)/의사명(admin-service)을 조회해 함께 채운다.
      * - 환자명은 여기서 채우지 않는다 (프론트가 patientId 로 CB2 batch 조회해서 직접 조합).
      * - 응급 건은 응급접수홈 전용 목록({@link #getEmergencyReceptionList()})에서만 보여준다.
      */
     @Override
     public List<ReceptionResponsedto> getReceptionList() {
-        List<ReceptionEntity> receptions =
-                receptionRepository.findByReceptionTypeNotOrderByReceptionDateDesc(RECEPTION_TYPE_EMERGENCY);
+        LocalDateTime startOfDay = LocalDate.now().atStartOfDay();
+
+        List<ReceptionEntity> receptions = receptionRepository
+                .findByReceptionTypeNotAndReceptionDateBetweenOrderByReceptionDateDesc(
+                        RECEPTION_TYPE_EMERGENCY, startOfDay, startOfDay.plusDays(1));
 
         Map<String, String> deptNames = getDeptNames();
         Map<String, String> doctorNames = getDoctorNames(receptions);
@@ -284,6 +295,12 @@ public class ReceptionServiceImpl implements ReceptionService {
     /**
      * 의사ID → 의사명 (목록에 등장하는 진료과별로 1회씩만 조회해 맵 구성)
      * admin-service가 응답하지 않아도 접수 목록 자체는 볼 수 있어야 하므로, 실패한 진료과는 건너뛴다.
+     *
+     * <p>진료과 수만큼 admin-service를 순차 호출하면 "진료과 수 × 커넥트타임아웃"만큼 걸려
+     * 프론트 타임아웃을 넘기기 쉽다(예: 6개 진료과 × 3초 ≈ 18초). 병렬로 물어봐서 전체 대기시간을
+     * 타임아웃 1회 수준으로 줄인다. admin-service 세션 쿠키는 요청 스레드에만 있으므로, 병렬로
+     * 실행할 워커 스레드에 명시적으로 복사해 넘긴다({@link OutboundSessionForwardingInterceptor}
+     * 가 그 쿠키를 읽어 admin-service 호출에 실어 보낸다).
      */
     private Map<String, String> getDoctorNames(List<ReceptionEntity> receptions) {
         Set<String> deptIds = receptions.stream()
@@ -291,17 +308,35 @@ public class ReceptionServiceImpl implements ReceptionService {
                 .filter(Objects::nonNull)
                 .collect(Collectors.toSet());
 
+        RequestAttributes callerRequest = RequestContextHolder.getRequestAttributes();
+
+        List<CompletableFuture<List<DoctorResponsedto>>> lookups = deptIds.stream()
+                .map(deptId -> CompletableFuture.supplyAsync(
+                        () -> fetchDoctorsForDept(deptId, callerRequest), adminLookupExecutor))
+                .toList();
+
         Map<String, String> doctorNames = new HashMap<>();
-        for (String deptId : deptIds) {
+        for (CompletableFuture<List<DoctorResponsedto>> lookup : lookups) {
             try {
-                for (DoctorResponsedto doctor : doctorBusinessDelegate.getDoctorsByDepartment(deptId).data()) {
+                for (DoctorResponsedto doctor : lookup.get(ADMIN_LOOKUP_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
                     doctorNames.put(doctor.getDoctorId(), doctor.getDoctorName());
                 }
             } catch (Exception e) {
-                log.warn("의사명 조회 실패 - deptId={} admin-service 응답 없음, 해당 진료과는 건너뛴다", deptId, e);
+                log.warn("의사명 조회 실패, 해당 진료과는 건너뛴다 (admin-service: {})", e.getMessage());
             }
         }
         return doctorNames;
+    }
+
+    private List<DoctorResponsedto> fetchDoctorsForDept(String deptId, RequestAttributes callerRequest) {
+        if (callerRequest != null) {
+            RequestContextHolder.setRequestAttributes(callerRequest);
+        }
+        try {
+            return doctorBusinessDelegate.getDoctorsByDepartment(deptId).data();
+        } finally {
+            RequestContextHolder.resetRequestAttributes();
+        }
     }
 
     /**

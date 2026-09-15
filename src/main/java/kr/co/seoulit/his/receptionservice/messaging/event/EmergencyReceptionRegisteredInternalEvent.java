@@ -10,11 +10,11 @@ import java.time.LocalDateTime;
  * 커밋 시점에 엔티티/외부조회 상태에 의존하지 않도록, 전송에 필요한 값만 스냅샷으로 담는다.
  */
 public record EmergencyReceptionRegisteredInternalEvent(
-        String receptionNo,
+        String receptionId,
         String patientId,
-        String patientName,
         String arrivalPath,
         LocalDateTime receivedAt,
+        String memo,
         String chiefComplaintRaw
 ) {
 }

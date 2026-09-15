@@ -33,17 +33,17 @@ public class EmergencyReceptionIntakeListener {
     public void handle(EmergencyReceptionRegisteredInternalEvent snapshot) {
         try {
             emergencyBusinessDelegate.sendReceptionIntake(EmergencyIntakeRequestdto.builder()
-                    .receptionNo(snapshot.receptionNo())
+                    .receptionId(snapshot.receptionId())
                     .patientId(snapshot.patientId())
-                    .patientName(snapshot.patientName())
                     .arrivalPath(snapshot.arrivalPath())
                     .receivedAt(snapshot.receivedAt() != null ? snapshot.receivedAt().toString() : null)
+                    .memo(snapshot.memo())
                     .chiefComplaintRaw(snapshot.chiefComplaintRaw())
                     .build());
-            log.info("응급 서비스 접수내역 전달 완료 - receptionNo={}", snapshot.receptionNo());
+            log.info("응급 서비스 접수내역 전달 완료 - receptionId={}", snapshot.receptionId());
         } catch (Exception e) {
-            log.error("응급 서비스 접수내역 전달 실패 - receptionNo={} (접수는 정상 처리됨)",
-                    snapshot.receptionNo(), e);
+            log.error("응급 서비스 접수내역 전달 실패 - receptionId={} (접수는 정상 처리됨)",
+                    snapshot.receptionId(), e);
         }
     }
 }

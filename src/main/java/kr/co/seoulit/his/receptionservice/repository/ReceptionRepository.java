@@ -13,10 +13,11 @@ import kr.co.seoulit.his.receptionservice.entity.ReceptionEntity;
 public interface ReceptionRepository extends JpaRepository<ReceptionEntity, String> {
 
     /**
-     * 접수 목록 조회 (접수일시 최신순, 특정 접수유형 제외).
-     * 접수홈 목록은 응급접수를 제외하고 보여준다 (응급은 응급접수홈 전용 목록으로).
+     * 당일 접수 목록 조회 (접수일시 최신순, 특정 접수유형 제외).
+     * 접수홈 목록은 응급접수를 제외한 당일 등록 건만 보여준다 (응급은 응급접수홈 전용 목록으로).
      */
-    List<ReceptionEntity> findByReceptionTypeNotOrderByReceptionDateDesc(String receptionType);
+    List<ReceptionEntity> findByReceptionTypeNotAndReceptionDateBetweenOrderByReceptionDateDesc(
+            String receptionType, LocalDateTime startInclusive, LocalDateTime endExclusive);
 
     /**
      * 특정 접수유형의 당일 접수 목록 조회.

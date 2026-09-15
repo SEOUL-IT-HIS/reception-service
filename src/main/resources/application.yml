@@ -17,7 +17,7 @@ spring:
         default_batch_fetch_size: 100
     show-sql: true
   kafka:
-    bootstrap-servers: 192.168.1.126:9092
+    bootstrap-servers: 192.168.1.126:9092 # ${KAFKA_BOOTSTRAP_SERVER}
     producer:
       acks: all
       retries: 3
@@ -39,7 +39,7 @@ springdoc:
     path: /swagger-ui.html
 
 cb2:
-  url: http://192.168.1.149:8080
+  url: http://192.168.1.149:8087
   connect-timeout: 3000
   read-timeout: 5000
 
@@ -48,10 +48,18 @@ admin:
 
 emergency:
   # 응급 서비스(emergency-service) base URL
-  url: http://192.168.1.152:8085
+  url: http://192.168.1.152:8089
   intake:
     # ER 접수 등록 시 응급 서비스로 REST 전송 on/off. false 면 Delegate/Listener 빈이 생성되지 않는다.
     enabled: true
+  kafka:
+    # ER 접수 등록 시 응급 서비스로 Kafka 발행 on/off. false 면 Producer/Listener 빈이 아예 생성되지 않는다.
+    # REST 전송(emergency.intake)과는 완전히 별개 경로 — 서로 영향 없음.
+    enabled: true
+    # 응급 서비스로 "응급 접수 접수내역" 이벤트를 전달하는 토픽
+    topic: Emergency-patient-daily-list
+    # 개발환경에서 앱 기동 시 토픽 자동생성 여부 (운영은 인프라에서 사전 생성 후 false)
+    auto-create-topic: true
 
 outpatient:
   kafka:
@@ -65,3 +73,7 @@ outpatient:
 logging:
   level:
     kr.co.seoulit.his.receptionservice.delegate.PatientDelegate: DEBUG
+
+
+server:
+  port: 8083

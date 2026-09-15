@@ -14,11 +14,13 @@ public class RestTemplateConfig {
     @Bean
     public RestTemplate restTemplate(
             RestTemplateBuilder builder,
+            OutboundSessionForwardingInterceptor sessionForwardingInterceptor,
             @Value("${cb2.connect-timeout}") long connectTimeout,
             @Value("${cb2.read-timeout}") long readTimeout) {
         return builder
                 .connectTimeout(Duration.ofMillis(connectTimeout))
                 .readTimeout(Duration.ofMillis(readTimeout))
+                .additionalInterceptors(sessionForwardingInterceptor)
                 .build();
     }
 
