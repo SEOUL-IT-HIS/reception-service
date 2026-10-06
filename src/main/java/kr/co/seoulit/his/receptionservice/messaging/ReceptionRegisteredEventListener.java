@@ -1,5 +1,7 @@
 package kr.co.seoulit.his.receptionservice.messaging;
 
+import java.time.ZoneId;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -7,6 +9,7 @@ import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 import org.springframework.stereotype.Component;
 
+import kr.co.seoulit.his.receptionservice.messaging.event.ReceptionCancelledInternalEvent;
 import kr.co.seoulit.his.receptionservice.messaging.event.ReceptionRegisteredEvent;
 import kr.co.seoulit.his.receptionservice.messaging.event.ReceptionRegisteredInternalEvent;
 import lombok.RequiredArgsConstructor;
@@ -34,10 +37,23 @@ public class ReceptionRegisteredEventListener {
     public void handle(ReceptionRegisteredInternalEvent snapshot) {
         try {
             producer.send(ReceptionRegisteredEvent.from(snapshot));
-        } catch (Exception e) {
+        } catch (Exception | LinkageError e) { // LinkageError: 실행 중 재컴파일로 클래스가 어긋난 경우(NoSuchMethodError 등)도 로그에 남긴다
             // send() 내부의 비동기 실패는 Producer 에서 로깅한다.
             // 여기서 잡히는 건 직렬화/매핑 등 동기 단계 오류다.
-            log.error("외래 접수 이벤트 생성/전송 시작 실패 - receptionId={}", snapshot.receptionId(), e);
+            log.error("[KAFKA_PUBLISH_FAILED] 외래 접수 이벤트 생성/전송 시작 실패 - receptionId={}", snapshot.receptionId(), e);
+        }
+    }
+
+    /** 외래 접수 취소 — 등록과 같은 토픽·같은 receptionId 로 eventType=ReceptionCancelled 를 발행한다. */
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void handleCancelled(ReceptionCancelledInternalEvent cancelled) {
+        try {
+            producer.send(ReceptionRegisteredEvent.cancelled(
+                    cancelled.snapshot(),
+                    cancelled.cancelledAt().atZone(ZoneId.systemDefault()).toOffsetDateTime()));
+        } catch (Exception | LinkageError e) { // LinkageError: 실행 중 재컴파일로 클래스가 어긋난 경우(NoSuchMethodError 등)도 로그에 남긴다
+            log.error("[KAFKA_PUBLISH_FAILED] 외래 접수 취소 이벤트 생성/전송 시작 실패 - receptionId={}",
+                    cancelled.snapshot().receptionId(), e);
         }
     }
 }

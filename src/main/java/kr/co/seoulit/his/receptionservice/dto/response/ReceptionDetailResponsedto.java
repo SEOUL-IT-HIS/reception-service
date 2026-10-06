@@ -35,11 +35,17 @@ public class ReceptionDetailResponsedto {
     /** 담당 의사 ID */
     private String doctorId;
 
+    /** 담당 의사명 (admin-service 직원 목록으로 채움) */
+    private String doctorName;
+
     /** 접수번호 */
     private String receptionNo;
 
     /** 접수유형 */
     private String receptionType;
+
+    /** 초진/재진 (INITIAL/REVISIT) */
+    private String visitType;
 
     /** 접수상태 */
     private String status;

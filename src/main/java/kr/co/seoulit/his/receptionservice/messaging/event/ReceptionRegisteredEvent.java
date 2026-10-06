@@ -6,7 +6,7 @@ import java.time.ZoneId;
 import java.util.UUID;
 
 /**
- * 외래 서비스로 전달하는 "외래 접수 등록" 이벤트.
+ * 외래 서비스로 전달하는 "외래 접수 등록/취소" 이벤트. (eventType 으로 구분)
  *
  * <p>외래 서비스가 제공한
  * {@code kr.co.seoulit.his.outpatientservice.common.client.reception.ReceptionEventDto}
@@ -24,7 +24,9 @@ public record ReceptionRegisteredEvent(
 ) {
 
     public static final String EVENT_TYPE_REGISTERED = "ReceptionRegistered";
-    public static final String SCHEMA_VERSION = "1.0";
+    public static final String EVENT_TYPE_CANCELLED = "ReceptionCancelled";
+    /** 1.1 — data.visitType, data.receptionType 추가 (OPD 합의, 필드 추가만 있는 하위호환 변경) */
+    public static final String SCHEMA_VERSION = "1.1";
     public static final String SOURCE_RCP = "RCP";
 
     public record ReceptionData(
@@ -33,19 +35,37 @@ public record ReceptionRegisteredEvent(
             String departmentCode,   // 배정된 진료과 (RCP deptId 를 문자열로 변환)
             String doctorId,         // 담당의 ID
             LocalDate visitDate,     // 내원일 (= 접수일)
-            String status,           // 접수 상태 (RCP 초기값 "RECEPTION" 을 그대로 전달)
-            String visitReason       // 방문 사유
+            String status,           // 접수 상태 (등록: "RECEPTION", 취소: "CANCELLED")
+            String visitReason,      // 방문 사유
+            String visitType,        // 초진/재진 — INITIAL / REVISIT (1.1~)
+            String receptionType     // 예약/당일 — RESERVATION / WALK_IN (1.1~)
     ) {}
 
     /**
      * 커밋 후 스냅샷({@link ReceptionRegisteredInternalEvent})을 외부 전달용 이벤트로 변환한다.
      */
     public static ReceptionRegisteredEvent from(ReceptionRegisteredInternalEvent snapshot) {
+        return of(EVENT_TYPE_REGISTERED,
+                snapshot.receptionDate().atZone(ZoneId.systemDefault()).toOffsetDateTime(),
+                snapshot);
+    }
+
+    /**
+     * 접수 취소 이벤트. 같은 토픽·같은 receptionId 로 발행하고, data 는 등록 때와 같은 값으로 채운다
+     * (OPD 는 receptionId 로 기존 건을 찾아 갱신하며, null 필드는 기존 값을 지운다).
+     * data.status 는 "CANCELLED", occurredAt 은 취소 시각이다.
+     */
+    public static ReceptionRegisteredEvent cancelled(ReceptionRegisteredInternalEvent snapshot, OffsetDateTime cancelledAt) {
+        return of(EVENT_TYPE_CANCELLED, cancelledAt, snapshot);
+    }
+
+    private static ReceptionRegisteredEvent of(
+            String eventType, OffsetDateTime occurredAt, ReceptionRegisteredInternalEvent snapshot) {
         return new ReceptionRegisteredEvent(
                 UUID.randomUUID().toString(),
-                EVENT_TYPE_REGISTERED,
+                eventType,
                 SCHEMA_VERSION,
-                snapshot.receptionDate().atZone(ZoneId.systemDefault()).toOffsetDateTime(),
+                occurredAt,
                 SOURCE_RCP,
                 new ReceptionData(
                         snapshot.receptionId(),
@@ -54,7 +74,9 @@ public record ReceptionRegisteredEvent(
                         snapshot.doctorId(),
                         snapshot.receptionDate().toLocalDate(),
                         snapshot.status(),
-                        snapshot.visitReason()
+                        snapshot.visitReason(),
+                        snapshot.visitType(),
+                        snapshot.receptionType()
                 )
         );
     }

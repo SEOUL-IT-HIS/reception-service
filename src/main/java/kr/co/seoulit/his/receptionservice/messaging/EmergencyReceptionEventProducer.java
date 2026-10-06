@@ -7,6 +7,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
 
+import kr.co.seoulit.his.receptionservice.messaging.event.ReceptionIntakeCancelledEvent;
 import kr.co.seoulit.his.receptionservice.messaging.event.ReceptionIntakeEvent;
 import lombok.RequiredArgsConstructor;
 
@@ -32,16 +33,23 @@ public class EmergencyReceptionEventProducer {
      * 접수건당 1개의 이벤트를 발행한다. 파티션 키는 receptionId 로 잡아 동일 접수건의 순서를 보장한다.
      */
     public void send(ReceptionIntakeEvent event) {
-        String key = event.receptionId();
+        send("응급 접수 이벤트", event.receptionId(), event.eventId(), event);
+    }
 
+    /** 응급 접수 취소 이벤트 — 등록과 같은 토픽·같은 키(receptionId)로 발행해 순서를 보장한다. */
+    public void send(ReceptionIntakeCancelledEvent event) {
+        send("응급 접수 취소 이벤트", event.receptionId(), event.eventId(), event);
+    }
+
+    private void send(String label, String key, String eventId, Object event) {
         kafkaTemplate.send(topic, key, event).whenComplete((result, ex) -> {
             if (ex != null) {
-                log.error("응급 접수 이벤트 발행 실패 - topic={}, receptionId={}, eventId={}",
-                        topic, key, event.eventId(), ex);
+                log.error("[KAFKA_PUBLISH_FAILED] {} 발행 실패 - topic={}, receptionId={}, eventId={}",
+                        label, topic, key, eventId, ex);
                 return;
             }
-            log.info("응급 접수 이벤트 발행 완료 - topic={}, receptionId={}, partition={}, offset={}",
-                    topic, key,
+            log.info("{} 발행 완료 - topic={}, receptionId={}, partition={}, offset={}",
+                    label, topic, key,
                     result.getRecordMetadata().partition(),
                     result.getRecordMetadata().offset());
         });

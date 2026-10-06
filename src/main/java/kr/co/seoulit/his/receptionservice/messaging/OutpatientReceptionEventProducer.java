@@ -36,7 +36,7 @@ public class OutpatientReceptionEventProducer {
 
         kafkaTemplate.send(topic, key, event).whenComplete((result, ex) -> {
             if (ex != null) {
-                log.error("외래 접수 이벤트 발행 실패 - topic={}, receptionId={}, eventId={}",
+                log.error("[KAFKA_PUBLISH_FAILED] 외래 접수 이벤트 발행 실패 - topic={}, receptionId={}, eventId={}",
                         topic, key, event.eventId(), ex);
                 return;
             }

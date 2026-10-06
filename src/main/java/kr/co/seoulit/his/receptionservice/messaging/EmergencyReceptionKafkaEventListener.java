@@ -2,12 +2,15 @@ package kr.co.seoulit.his.receptionservice.messaging;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
+import kr.co.seoulit.his.receptionservice.messaging.event.EmergencyReceptionCancelledInternalEvent;
 import kr.co.seoulit.his.receptionservice.messaging.event.EmergencyReceptionRegisteredInternalEvent;
+import kr.co.seoulit.his.receptionservice.messaging.event.ReceptionIntakeCancelledEvent;
 import kr.co.seoulit.his.receptionservice.messaging.event.ReceptionIntakeEvent;
 import lombok.RequiredArgsConstructor;
 
@@ -33,14 +36,35 @@ public class EmergencyReceptionKafkaEventListener {
 
     private final EmergencyReceptionEventProducer producer;
 
+    /**
+     * 응급 접수 취소 이벤트 발행 on/off. 응급 서비스가 eventType/status 로 등록·취소를 구분하도록
+     * 반영되기 전에 보내면 취소가 신규 접수로 처리될 수 있으므로, 응급 쪽 준비 전까지는 false 로 둔다.
+     */
+    @Value("${emergency.kafka.cancel-enabled:false}")
+    private boolean cancelEnabled;
+
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void handle(EmergencyReceptionRegisteredInternalEvent snapshot) {
         try {
             producer.send(ReceptionIntakeEvent.from(snapshot));
-        } catch (Exception e) {
+        } catch (Exception | LinkageError e) { // LinkageError: 실행 중 재컴파일로 클래스가 어긋난 경우(NoSuchMethodError 등)도 로그에 남긴다
             // send() 내부의 비동기 실패는 Producer 에서 로깅한다.
             // 여기서 잡히는 건 직렬화/매핑 등 동기 단계 오류다.
-            log.error("응급 접수 이벤트 생성/전송 시작 실패 - receptionId={}", snapshot.receptionId(), e);
+            log.error("[KAFKA_PUBLISH_FAILED] 응급 접수 이벤트 생성/전송 시작 실패 - receptionId={}", snapshot.receptionId(), e);
+        }
+    }
+
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void handleCancelled(EmergencyReceptionCancelledInternalEvent cancelled) {
+        String receptionId = cancelled.snapshot().receptionId();
+        if (!cancelEnabled) {
+            log.info("응급 접수 취소 이벤트 발행 생략(emergency.kafka.cancel-enabled=false) - receptionId={}", receptionId);
+            return;
+        }
+        try {
+            producer.send(ReceptionIntakeCancelledEvent.from(cancelled));
+        } catch (Exception | LinkageError e) { // LinkageError: 실행 중 재컴파일로 클래스가 어긋난 경우(NoSuchMethodError 등)도 로그에 남긴다
+            log.error("[KAFKA_PUBLISH_FAILED] 응급 접수 취소 이벤트 생성/전송 시작 실패 - receptionId={}", receptionId, e);
         }
     }
 }

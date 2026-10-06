@@ -2,6 +2,9 @@ package kr.co.seoulit.his.receptionservice.messaging.event;
 
 import java.time.LocalDateTime;
 
+import kr.co.seoulit.his.receptionservice.entity.EmergencyInfoEntity;
+import kr.co.seoulit.his.receptionservice.entity.ReceptionEntity;
+
 /**
  * 응급 접수 저장 직후 서비스가 발행하는 스프링 내부 이벤트(트랜잭션 경계 안).
  *
@@ -15,6 +18,21 @@ public record EmergencyReceptionRegisteredInternalEvent(
         String arrivalPath,
         LocalDateTime receivedAt,
         String memo,
-        String chiefComplaintRaw
+        String chiefComplaintRaw,
+        Integer ktasLevel,
+        LocalDateTime triageDateTime
 ) {
+
+    /** 접수 + 응급접수정보로 스냅샷을 만든다 (등록·취소 이벤트가 같은 값을 보내도록 한 곳에서 만든다). */
+    public static EmergencyReceptionRegisteredInternalEvent from(ReceptionEntity reception, EmergencyInfoEntity emergencyInfo) {
+        return new EmergencyReceptionRegisteredInternalEvent(
+                reception.getReceptionId(),
+                reception.getPatientId(),
+                emergencyInfo != null ? emergencyInfo.getVisitMethod() : null,
+                reception.getReceptionDate(),
+                reception.getMemo(),
+                emergencyInfo != null ? emergencyInfo.getChiefComplaint() : null,
+                emergencyInfo != null ? emergencyInfo.getKtasLevel() : null,
+                emergencyInfo != null ? emergencyInfo.getTriageDateTime() : null);
+    }
 }

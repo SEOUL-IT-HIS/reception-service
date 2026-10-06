@@ -32,8 +32,14 @@ public class ReceptionRequestdto {
     /** 담당 의사 ID */
     private String doctorId;
 
-    /** 접수유형 */
+    /** (무시됨) 접수유형은 서버가 정한다 — reservationId 가 있으면 RESERVATION(예약), 없으면 WALK_IN(당일) */
     private String receptionType;
+
+    /** 초진/재진 — INITIAL(신규환자등록으로 선택)/REVISIT(환자검색으로 선택) */
+    private String visitType;
+
+    /** 예약 목록의 "접수하기"로 들어온 경우 그 예약ID. 있으면 접수유형이 예약(RESERVATION)이 되고 예약이 접수 완료 처리된다. */
+    private String reservationId;
 
     /** 접수 메모 */
     private String memo;

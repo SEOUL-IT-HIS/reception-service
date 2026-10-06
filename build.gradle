@@ -26,6 +26,8 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-restclient'
     implementation 'org.springframework.boot:spring-boot-starter-kafka'
     implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:3.0.3'
+     // 로그인 세션을 톰캣 메모리 대신 Redis 에 저장
+    implementation 'org.springframework.boot:spring-boot-starter-session-data-redis'
     runtimeOnly 'com.oracle.database.jdbc:ojdbc11:23.26.2.0.0'
 
     compileOnly 'org.projectlombok:lombok'

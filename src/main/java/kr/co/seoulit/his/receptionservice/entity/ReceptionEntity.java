@@ -44,9 +44,13 @@ public class ReceptionEntity {
     @Column(name = "RECEPTION_NO")
     private String receptionNo;
 
-    /** 접수유형 (예: 외래, 응급 등) */
+    /** 접수유형 — 외래: RESERVATION(예약)/WALK_IN(당일), 응급: EMERGENCY */
     @Column(name = "RECEPTION_TYPE")
     private String receptionType;
+
+    /** 초진/재진 — INITIAL(초진)/REVISIT(재진). 응급 접수는 null */
+    @Column(name = "VISIT_TYPE", length = 20)
+    private String visitType;
 
     /** 접수상태 (예: 접수, 진료중, 완료, 취소 등) */
     @Column(name = "STATUS")

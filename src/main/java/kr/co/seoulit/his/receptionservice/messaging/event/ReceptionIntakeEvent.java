@@ -23,7 +23,9 @@ public record ReceptionIntakeEvent(
         String arrivalPath,
         LocalDateTime receivedAt,
         String memo,
-        String chiefComplaintRaw
+        String chiefComplaintRaw,
+        Integer ktasLevel,               // 접수 시 KTAS 등급(1~5) — 응급이 최초 KTAS로 저장 (Kafka 전용, REST에는 없음)
+        LocalDateTime triageDateTime     // 접수 시 KTAS 분류 시각
 ) {
 
     public static ReceptionIntakeEvent from(EmergencyReceptionRegisteredInternalEvent snapshot) {
@@ -35,6 +37,8 @@ public record ReceptionIntakeEvent(
                 snapshot.arrivalPath(),
                 snapshot.receivedAt(),
                 snapshot.memo(),
-                snapshot.chiefComplaintRaw());
+                snapshot.chiefComplaintRaw(),
+                snapshot.ktasLevel(),
+                snapshot.triageDateTime());
     }
 }

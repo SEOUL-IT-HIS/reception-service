@@ -11,13 +11,17 @@ import kr.co.seoulit.his.receptionservice.dto.request.EmergencyReceptionRequestd
 import kr.co.seoulit.his.receptionservice.dto.request.ReceptionCancelRequestdto;
 import kr.co.seoulit.his.receptionservice.dto.request.ReceptionRequestdto;
 import kr.co.seoulit.his.receptionservice.dto.request.ReceptionStatusChangeRequestdto;
+import kr.co.seoulit.his.receptionservice.dto.request.ReservationRequestdto;
 import kr.co.seoulit.his.receptionservice.dto.response.DepartmentResponsedto;
 import kr.co.seoulit.his.receptionservice.dto.response.DoctorResponsedto;
+import kr.co.seoulit.his.receptionservice.dto.response.EmergencyActiveCheckResponsedto;
 import kr.co.seoulit.his.receptionservice.dto.response.EmergencyReceptionResponsedto;
 import kr.co.seoulit.his.receptionservice.dto.response.PatientDetailResponsedto;
 import kr.co.seoulit.his.receptionservice.dto.response.PatientSummaryResponsedto;
 import kr.co.seoulit.his.receptionservice.dto.response.ReceptionDetailResponsedto;
 import kr.co.seoulit.his.receptionservice.dto.response.ReceptionResponsedto;
+import kr.co.seoulit.his.receptionservice.dto.response.ReservationResponsedto;
+import kr.co.seoulit.his.receptionservice.dto.response.VisitTypeResponsedto;
 import kr.co.seoulit.his.receptionservice.service.PatientService;
 import kr.co.seoulit.his.receptionservice.service.ReceptionService;
 import lombok.RequiredArgsConstructor;
@@ -41,6 +45,52 @@ public class ReceptionController {
 
                 return ResponseEntity.status(HttpStatus.CREATED)
                                 .body(ApiResponse.success(HttpStatus.CREATED.value(), null));
+        }
+
+        /**
+         * 환자의 외래 진료 이력으로 초진/재진 판정 (외래 장애·미연동 시 determined=false)
+         */
+        @GetMapping("/patients/{patientId}/visit-type")
+        public ResponseEntity<ApiResponse<VisitTypeResponsedto>> getVisitType(
+                        @PathVariable String patientId) {
+
+                return ResponseEntity.ok(
+                                ApiResponse.success(HttpStatus.OK.value(), receptionService.getVisitType(patientId)));
+        }
+
+        /**
+         * 예약 등록
+         */
+        @PostMapping("/reservations")
+        public ResponseEntity<ApiResponse<Void>> registerReservation(
+                        @RequestBody ReservationRequestdto request) {
+
+                receptionService.registerReservation(request);
+
+                return ResponseEntity.status(HttpStatus.CREATED)
+                                .body(ApiResponse.success(HttpStatus.CREATED.value(), null));
+        }
+
+        /**
+         * 예약 취소 (접수되지 않은 예약만)
+         */
+        @PatchMapping("/reservations/{reservationId}/cancel")
+        public ResponseEntity<ApiResponse<Void>> cancelReservation(
+                        @PathVariable String reservationId) {
+
+                receptionService.cancelReservation(reservationId);
+
+                return ResponseEntity.ok(ApiResponse.success(HttpStatus.OK.value(), null));
+        }
+
+        /**
+         * 예약 목록 조회 (오늘 이후 예약)
+         */
+        @GetMapping("/reservations")
+        public ResponseEntity<ApiResponse<List<ReservationResponsedto>>> getReservationList() {
+
+                return ResponseEntity.ok(
+                                ApiResponse.success(HttpStatus.OK.value(), receptionService.getReservationList()));
         }
 
         /**
@@ -83,6 +133,17 @@ public class ReceptionController {
 
                 return ResponseEntity.ok(
                                 ApiResponse.success(HttpStatus.OK.value(), receptionService.getEmergencyReceptionList()));
+        }
+
+        /**
+         * 응급접수 중복(활성) 확인 — 등록 전 사전 확인용, 경고만 하고 절대 막지 않음(fail-open)
+         */
+        @GetMapping("/emergency/active-check")
+        public ResponseEntity<ApiResponse<EmergencyActiveCheckResponsedto>> checkActiveEmergencyReception(
+                        @RequestParam String patientId) {
+
+                return ResponseEntity.ok(
+                                ApiResponse.success(HttpStatus.OK.value(), receptionService.checkActiveEmergencyReception(patientId)));
         }
 
         /**

@@ -18,7 +18,9 @@ public record ReceptionRegisteredInternalEvent(
         String doctorId,
         LocalDateTime receptionDate,
         String status,
-        String visitReason
+        String visitReason,
+        String visitType,
+        String receptionType
 ) {
 
     public static ReceptionRegisteredInternalEvent from(ReceptionEntity reception) {
@@ -29,7 +31,9 @@ public record ReceptionRegisteredInternalEvent(
                 reception.getDoctorId(),
                 reception.getReceptionDate(),
                 reception.getStatus(),
-                reception.getMemo()
+                reception.getMemo(),
+                reception.getVisitType(),
+                reception.getReceptionType()
         );
     }
 }

@@ -43,6 +43,9 @@ public class ReceptionResponsedto {
     /** 접수유형 */
     private String receptionType;
 
+    /** 초진/재진 (INITIAL/REVISIT) */
+    private String visitType;
+
     /** 접수상태 */
     private String status;
 
