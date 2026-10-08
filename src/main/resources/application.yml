@@ -17,6 +17,7 @@ spring:
         default_batch_fetch_size: 100
     show-sql: true
   kafka:
+    #bootstrap-servers: localhost:9092
     bootstrap-servers: 192.168.1.126:9092
     producer:
       acks: all
@@ -28,6 +29,7 @@ spring:
         spring.json.add.type.headers: false
   data:
     redis:
+      #host: localhost
       host: 192.168.1.126
       port: 6379
       password: ${REDIS_PASSWORD:}
@@ -46,16 +48,19 @@ springdoc:
 
 cb2:
   # patient-service(구 CB2) — compose 바깥 포트(18087)
+  #url: http://localhost:8087
   url: http://192.168.1.126:18087
   connect-timeout: 3000
   read-timeout: 5000
 
 admin:
   # compose 바깥 포트(18080)
+  #url: http://localhost:9191
   url: http://192.168.1.126:18080
 
 emergency:
   # 응급 서비스(emergency-service) base URL — compose 바깥 포트(18089)
+  #url: http://localhost:8089
   url: http://192.168.1.130:8089
   intake:
     # ER 접수 등록 시 응급 서비스로 REST 전송 on/off. false 면 Delegate/Listener 빈이 생성되지 않는다.
@@ -87,11 +92,19 @@ emergency:
 outpatient:
   # 외래 서비스(outpatient-service) base URL — 초진/재진 판정용 진료 이력 조회에 쓴다.
   # TODO: OPD 개발 PC/공용 서버 주소를 받으면 OUTPATIENT_URL 환경변수나 이 값을 바꾼다 (지금은 임시 기본값).
+  #url: http://localhost:8088
   url: http://192.168.1.112:8088
   visit-history:
     # 접수 시 환자의 외래 진료 이력(GET /api/outpatient/encounters/visit-history)으로 초진/재진을 자동 판정할지 여부.
     # false 면 Delegate 빈이 생성되지 않고 판정하지 않는다(화면에서 직접 선택). 외래 API 배포 후 true.
     # 조회 실패·타임아웃 시에도 판정하지 않는다 — 재진으로 간주하지 않고 접수를 막지도 않는다. 타임아웃은 emergency.active-check.timeout 을 같이 쓴다.
+    enabled: true
+  cancel-check:
+    # 외래 접수 취소 직전, 외래에서 진료가 시작됐는지(GET /api/outpatient/encounters/by-reception/{receptionId}/status) 조회해서
+    # 진료 중(IN_PROGRESS)·진료 완료(COMPLETED)면 취소를 막는 기능. 404 는 "외래에 아직 등록 안 된 접수"라 취소 허용.
+    # 조회에 실패하면(장애·타임아웃·응답 오류) 취소를 막는다(fail-closed). 타임아웃은 emergency.active-check.timeout 을 같이 쓴다.
+    # false 면 확인 없이 취소한다. 외래 API 가 실제 접수에 대해 200 으로 답하는 것을 확인한 뒤에만 true 로 바꾼다
+    # (2026-10-08 오전에는 외래가 이미 가진 접수에도 404 를 반환했고, 오후에 외래가 고쳐 200 으로 답하는 것을 확인했다).
     enabled: true
   kafka:
     # 외래로의 Kafka 발행 기능 on/off. false 면 Producer/Listener 빈이 아예 생성되지 않는다.

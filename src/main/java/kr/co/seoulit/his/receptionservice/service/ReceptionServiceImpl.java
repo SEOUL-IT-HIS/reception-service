@@ -26,6 +26,7 @@ import kr.co.seoulit.his.receptionservice.delegate.DoctorBusinessDelegate;
 import kr.co.seoulit.his.receptionservice.delegate.EmergencyActiveCheckBusinessDelegate;
 import kr.co.seoulit.his.receptionservice.delegate.EmergencyCancelCheckBusinessDelegate;
 import kr.co.seoulit.his.receptionservice.delegate.EmpBusinessDelegate;
+import kr.co.seoulit.his.receptionservice.delegate.OutpatientCancelCheckBusinessDelegate;
 import kr.co.seoulit.his.receptionservice.delegate.OutpatientVisitHistoryBusinessDelegate;
 import kr.co.seoulit.his.receptionservice.delegate.PatientBusinessDelegate;
 import kr.co.seoulit.his.receptionservice.dto.request.EmergencyReceptionRequestdto;
@@ -41,6 +42,7 @@ import kr.co.seoulit.his.receptionservice.dto.response.EmergencyActiveCheckRespo
 import kr.co.seoulit.his.receptionservice.dto.response.EmergencyCancellableResponsedto;
 import kr.co.seoulit.his.receptionservice.dto.response.EmergencyReceptionResponsedto;
 import kr.co.seoulit.his.receptionservice.dto.response.EmpResponsedto;
+import kr.co.seoulit.his.receptionservice.dto.response.OutpatientEncounterStatusResponsedto;
 import kr.co.seoulit.his.receptionservice.dto.response.OutpatientVisitHistoryResponsedto;
 import kr.co.seoulit.his.receptionservice.dto.response.PatientDetailResponsedto;
 import kr.co.seoulit.his.receptionservice.dto.response.PatientSummaryResponsedto;
@@ -60,6 +62,8 @@ import kr.co.seoulit.his.receptionservice.exception.EmergencyCancelNotAllowedExc
 import kr.co.seoulit.his.receptionservice.exception.EmergencyInfoRequiredException;
 import kr.co.seoulit.his.receptionservice.exception.InvalidReceptionTypeException;
 import kr.co.seoulit.his.receptionservice.exception.InvalidReservationException;
+import kr.co.seoulit.his.receptionservice.exception.OutpatientCancelCheckFailedException;
+import kr.co.seoulit.his.receptionservice.exception.OutpatientCancelNotAllowedException;
 import kr.co.seoulit.his.receptionservice.exception.ReceptionAlreadyCancelledException;
 import kr.co.seoulit.his.receptionservice.exception.ReceptionNotFoundException;
 import kr.co.seoulit.his.receptionservice.exception.ReceptionStatusUnchangedException;
@@ -92,6 +96,8 @@ public class ReceptionServiceImpl implements ReceptionService {
     private static final Set<String> VISIT_TYPES = Set.of("INITIAL", "REVISIT");
     /** 응급 취소 가능 여부 조회의 reasonCode — 진료 기록 있음 */
     private static final String EMERGENCY_CANCEL_HAS_RECORDS = "HAS_RECORDS";
+    /** 외래 진료 상태 중 접수 취소를 막는 값 — 진료 중, 진료 완료 */
+    private static final Set<String> OUTPATIENT_STARTED_STATUSES = Set.of("IN_PROGRESS", "COMPLETED");
     private static final String STATUS_CANCELLED = "CANCELLED";
     private static final String DEPT_CD_GROUP = "DEPT_CD";
     private static final DateTimeFormatter RECEPTION_NO_FORMAT =
@@ -114,6 +120,8 @@ public class ReceptionServiceImpl implements ReceptionService {
     private final Optional<EmergencyCancelCheckBusinessDelegate> emergencyCancelCheckBusinessDelegate;
     /** outpatient.visit-history.enabled=false 면 빈이 없으므로 Optional — 없으면 초진/재진을 판정하지 않는다(외래 API 배포 전). */
     private final Optional<OutpatientVisitHistoryBusinessDelegate> outpatientVisitHistoryBusinessDelegate;
+    /** outpatient.cancel-check.enabled=false 면 빈이 없으므로 Optional — 없으면 확인 없이 취소한다(외래 API 배포·확인 전). */
+    private final Optional<OutpatientCancelCheckBusinessDelegate> outpatientCancelCheckBusinessDelegate;
     private final ApplicationEventPublisher eventPublisher;
 
     /**
@@ -617,6 +625,8 @@ public class ReceptionServiceImpl implements ReceptionService {
 
         if (RECEPTION_TYPE_EMERGENCY.equals(reception.getReceptionType())) {
             checkEmergencyCancellable(receptionId);
+        } else {
+            checkOutpatientCancellable(receptionId);
         }
 
         LocalDateTime now = LocalDateTime.now();
@@ -658,6 +668,37 @@ public class ReceptionServiceImpl implements ReceptionService {
      * <p>이 조회는 사전 안내용이다. 조회와 실제 취소 사이에 응급에 기록이 생길 수 있어,
      * 최종 판단은 응급이 취소 이벤트를 받을 때 다시 한다.
      */
+    /**
+     * 외래 접수 취소 전, 외래에서 진료가 시작되었는지 확인한다.
+     * 외래는 진행 중(IN_PROGRESS)·완료(COMPLETED)인 접수의 취소 메시지를 받아도 상태를 바꾸지 않으므로 여기서 먼저 막는다.
+     * (완료도 막는 이유: 진료가 끝난 건을 접수만 취소로 바꾸면 접수와 외래 상태가 어긋난다)
+     * 외래가 404 로 답하면 "외래에 아직 등록되지 않은 접수"라서 취소를 허용한다.
+     * 확인하지 못하면(외래 장애·타임아웃·응답 오류) 취소를 막는다 (fail-closed).
+     * 기능이 꺼져 있으면(외래 API 배포 전, 빈 없음) 확인 없이 진행한다.
+     *
+     * <p>이 조회는 사전 안내용이다. 조회와 실제 취소 사이에 진료가 시작될 수 있어,
+     * 최종 판단은 외래가 취소 메시지를 받을 때 다시 한다.
+     */
+    private void checkOutpatientCancellable(String receptionId) {
+        if (outpatientCancelCheckBusinessDelegate.isEmpty()) {
+            return;
+        }
+        Optional<OutpatientEncounterStatusResponsedto> encounter;
+        try {
+            encounter = outpatientCancelCheckBusinessDelegate.get().getStatus(receptionId);
+        } catch (RestClientException e) {
+            log.warn("외래 진료 상태 조회 실패 - 취소를 막는다(fail-closed). receptionId={}", receptionId, e);
+            throw new OutpatientCancelCheckFailedException(receptionId, e.getMessage());
+        }
+        if (encounter.isEmpty()) {
+            return;
+        }
+        OutpatientEncounterStatusResponsedto status = encounter.get();
+        if (status.isInProgress() || OUTPATIENT_STARTED_STATUSES.contains(status.getStatus())) {
+            throw new OutpatientCancelNotAllowedException(receptionId, status.getStatus());
+        }
+    }
+
     private void checkEmergencyCancellable(String receptionId) {
         if (emergencyCancelCheckBusinessDelegate.isEmpty()) {
             return;
