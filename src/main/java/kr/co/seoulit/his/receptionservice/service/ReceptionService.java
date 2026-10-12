@@ -81,6 +81,12 @@ public interface ReceptionService {
     void cancelReception(String receptionId, ReceptionCancelRequestdto request);
 
     /**
+     * 응급이 "오접수·중복 접수"로 닫았다고 알려 오면(ReceptionVoided 이벤트) 응급 기록 유무와 상관없이 접수를 취소한다.
+     * 이미 취소됐거나 응급 접수가 아니거나 없는 접수는 무시한다 (같은 이벤트가 다시 와도 안전).
+     */
+    void voidEmergencyReception(String receptionId, String reasonType, String reasonText, String keptReceptionId, String decidedBy);
+
+    /**
      * 진료과 목록 조회
      */
     ApiResponse<List<DepartmentResponsedto>> getDepartments();

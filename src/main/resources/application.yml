@@ -17,8 +17,8 @@ spring:
         default_batch_fetch_size: 100
     show-sql: true
   kafka:
-    #bootstrap-servers: localhost:9092
-    bootstrap-servers: 192.168.1.126:9092
+    bootstrap-servers: localhost:9092
+    #bootstrap-servers: 192.168.1.126:9092
     producer:
       acks: all
       retries: 3
@@ -27,10 +27,22 @@ spring:
       properties:
         enable.idempotence: true
         spring.json.add.type.headers: false
+    # 응급이 보내는 오접수 이벤트(emergency.voided)를 받는 쪽 설정. 메시지는 문자열로 받아 직접 JSON 을 읽는다.
+    consumer:
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      # 컨슈머 그룹이 처음 생길 때 토픽의 처음부터 읽는다 — 재시작·재전송 때 놓치는 이벤트가 없게 (중복은 안전하게 처리됨)
+      auto-offset-reset: earliest
+      properties:
+        # 응급이 만들기 전에 이 서비스가 토픽을 자동 생성해 버리지 않게 한다 (토픽은 응급이 서버를 켤 때 만든다)
+        allow.auto.create.topics: false
+    listener:
+      # 아직 토픽이 없어도 서비스가 기동되게 한다
+      missing-topics-fatal: false
   data:
     redis:
-      #host: localhost
-      host: 192.168.1.126
+      host: localhost
+      #host: 192.168.1.126
       port: 6379
       password: ${REDIS_PASSWORD:}
 
@@ -48,20 +60,20 @@ springdoc:
 
 cb2:
   # patient-service(구 CB2) — compose 바깥 포트(18087)
-  #url: http://localhost:8087
-  url: http://192.168.1.126:18087
+  url: http://localhost:8087
+  #url: http://192.168.1.126:18087
   connect-timeout: 3000
   read-timeout: 5000
 
 admin:
   # compose 바깥 포트(18080)
-  #url: http://localhost:9191
-  url: http://192.168.1.126:18080
+  url: http://localhost:9191
+  #url: http://192.168.1.126:18080
 
 emergency:
   # 응급 서비스(emergency-service) base URL — compose 바깥 포트(18089)
-  #url: http://localhost:8089
-  url: http://192.168.1.130:8089
+  url: http://localhost:8089
+  #url: http://192.168.1.130:8089
   intake:
     # ER 접수 등록 시 응급 서비스로 REST 전송 on/off. false 면 Delegate/Listener 빈이 생성되지 않는다.
     enabled: true
@@ -88,12 +100,20 @@ emergency:
     cancel-enabled: true
     # 개발환경에서 앱 기동 시 토픽 자동생성 여부 (운영은 인프라에서 사전 생성 후 false)
     auto-create-topic: true
+  voided:
+    # 응급이 "오접수·중복 접수"로 접수를 닫았을 때 보내는 이벤트(ReceptionVoided)를 받아 해당 접수를 강제로 취소하는 기능.
+    # 응급 기록이 있어도 취소한다 (응급이 직접 결정한 취소). 같은 이벤트가 다시 와도 안전하다 (이미 취소된 접수는 그대로).
+    # false 면 컨슈머가 만들어지지 않는다.
+    enabled: true
+    # 응급이 서버를 켤 때 만든다 (RCP 는 구독만 한다)
+    topic: emergency.reception.voided.v1
+    group-id: reception-service.reception-voided-consumer
 
 outpatient:
   # 외래 서비스(outpatient-service) base URL — 초진/재진 판정용 진료 이력 조회에 쓴다.
   # TODO: OPD 개발 PC/공용 서버 주소를 받으면 OUTPATIENT_URL 환경변수나 이 값을 바꾼다 (지금은 임시 기본값).
-  #url: http://localhost:8088
-  url: http://192.168.1.112:8088
+  url: http://localhost:8088
+  #url: http://192.168.1.112:8088
   visit-history:
     # 접수 시 환자의 외래 진료 이력(GET /api/outpatient/encounters/visit-history)으로 초진/재진을 자동 판정할지 여부.
     # false 면 Delegate 빈이 생성되지 않고 판정하지 않는다(화면에서 직접 선택). 외래 API 배포 후 true.

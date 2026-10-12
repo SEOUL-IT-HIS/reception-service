@@ -96,6 +96,9 @@ public class ReceptionServiceImpl implements ReceptionService {
     private static final Set<String> VISIT_TYPES = Set.of("INITIAL", "REVISIT");
     /** 응급 취소 가능 여부 조회의 reasonCode — 진료 기록 있음 */
     private static final String EMERGENCY_CANCEL_HAS_RECORDS = "HAS_RECORDS";
+    /** RECEPTION_CANCEL 컬럼 길이 — 취소 상세 사유 500자, 취소자 50자 */
+    private static final int CANCEL_DETAIL_MAX_LENGTH = 500;
+    private static final int CANCEL_BY_MAX_LENGTH = 50;
     /** 외래 진료 상태 중 접수 취소를 막는 값 — 진료 중, 진료 완료 */
     private static final Set<String> OUTPATIENT_STARTED_STATUSES = Set.of("IN_PROGRESS", "COMPLETED");
     private static final String STATUS_CANCELLED = "CANCELLED";
@@ -629,34 +632,84 @@ public class ReceptionServiceImpl implements ReceptionService {
             checkOutpatientCancellable(receptionId);
         }
 
+        applyCancellation(reception, request.getCancelReasonCode(), request.getCancelReasonDetail(), request.getCancelledBy());
+    }
+
+    /**
+     * 응급이 "오접수·중복 접수"로 닫았다고 알려 올 때(ReceptionVoided 이벤트) 접수를 강제로 취소한다.
+     *
+     * <p>일반 취소({@link #cancelReception})와 달리 응급의 취소 가능 여부 조회(진료 기록 유무)를 건너뛴다 —
+     * 응급이 직접 결정한 취소이므로 응급 기록이 있어도 취소한다. 이 경로는 이 이벤트로만 탈 수 있다.
+     * 취소 후에는 일반 취소와 똑같이 ReceptionCancelled 이벤트가 응급 토픽으로 나간다.
+     *
+     * <p>같은 이벤트가 다시 와도 안전하다(이미 취소된 접수는 그대로 둔다). 응급 접수가 아니거나 없는 접수는 무시한다.
+     */
+    @Override
+    @Transactional
+    public void voidEmergencyReception(
+            String receptionId, String reasonType, String reasonText, String keptReceptionId, String decidedBy) {
+
+        ReceptionEntity reception = receptionRepository.findById(receptionId).orElse(null);
+        if (reception == null) {
+            log.warn("오접수 취소 이벤트 무시 — 접수를 찾을 수 없다. receptionId={}", receptionId);
+            return;
+        }
+        if (!RECEPTION_TYPE_EMERGENCY.equals(reception.getReceptionType())) {
+            log.warn("오접수 취소 이벤트 무시 — 응급 접수가 아니다. receptionId={}, type={}", receptionId, reception.getReceptionType());
+            return;
+        }
+        if (STATUS_CANCELLED.equals(reception.getStatus())) {
+            log.info("오접수 취소 이벤트 무시 — 이미 취소된 접수다. receptionId={}", receptionId);
+            return;
+        }
+
+        // 사유 코드: DUPLICATE → DUPLICATE(중복 접수), ERRONEOUS → MISTAKE(등록 오류), 그 밖은 ETC
+        String reasonCode = "DUPLICATE".equals(reasonType) ? "DUPLICATE" : "ERRONEOUS".equals(reasonType) ? "MISTAKE" : "ETC";
+        String detail = reasonText == null ? "" : reasonText.trim();
+        if (keptReceptionId != null && !keptReceptionId.isBlank()) {
+            detail = detail + (detail.isEmpty() ? "" : " ") + "(유지 접수: " + keptReceptionId.trim() + ")";
+        }
+        String cancelledBy = decidedBy == null || decidedBy.isBlank() ? "emergency-service" : decidedBy.trim();
+
+        applyCancellation(
+                reception,
+                reasonCode,
+                truncate(detail.isEmpty() ? null : detail, CANCEL_DETAIL_MAX_LENGTH),
+                truncate(cancelledBy, CANCEL_BY_MAX_LENGTH));
+        log.info("응급 오접수·중복 접수로 접수 취소 - receptionId={}, reasonType={}, decidedBy={}", receptionId, reasonType, cancelledBy);
+    }
+
+    /** 접수를 취소 상태로 바꾸고 취소 기록·상태 이력을 남긴 뒤, 커밋 후 외래/응급으로 취소 이벤트를 보내도록 예약한다. */
+    private void applyCancellation(ReceptionEntity reception, String reasonCode, String reasonDetail, String cancelledBy) {
+        String prevStatus = reception.getStatus();
         LocalDateTime now = LocalDateTime.now();
 
         reception.changeStatus(STATUS_CANCELLED, now);
 
-        ReceptionCancelEntity cancel = ReceptionCancelEntity.builder()
+        receptionCancelRepository.save(ReceptionCancelEntity.builder()
                 .cancelId(UUID.randomUUID().toString())
-                .receptionId(receptionId)
-                .cancelReasonCode(request.getCancelReasonCode())
-                .cancelReasonDetail(request.getCancelReasonDetail())
-                .cancelledBy(request.getCancelledBy())
+                .receptionId(reception.getReceptionId())
+                .cancelReasonCode(reasonCode)
+                .cancelReasonDetail(reasonDetail)
+                .cancelledBy(cancelledBy)
                 .cancelledAt(now)
-                .build();
+                .build());
 
-        receptionCancelRepository.save(cancel);
-
-        ReceptionStatusHistoryEntity history = ReceptionStatusHistoryEntity.builder()
+        receptionStatusHistoryRepository.save(ReceptionStatusHistoryEntity.builder()
                 .historyId(UUID.randomUUID().toString())
-                .receptionId(receptionId)
+                .receptionId(reception.getReceptionId())
                 .prevStatus(prevStatus)
                 .newStatus(STATUS_CANCELLED)
-                .changedBy(request.getCancelledBy())
+                .changedBy(cancelledBy)
                 .changedAt(now)
-                .reason(request.getCancelReasonDetail())
-                .build();
-
-        receptionStatusHistoryRepository.save(history);
+                .reason(reasonDetail)
+                .build());
 
         publishReceptionCancelled(reception, now);
+    }
+
+    private static String truncate(String value, int maxLength) {
+        return value == null || value.length() <= maxLength ? value : value.substring(0, maxLength);
     }
 
     /**
@@ -668,6 +721,30 @@ public class ReceptionServiceImpl implements ReceptionService {
      * <p>이 조회는 사전 안내용이다. 조회와 실제 취소 사이에 응급에 기록이 생길 수 있어,
      * 최종 판단은 응급이 취소 이벤트를 받을 때 다시 한다.
      */
+    private void checkEmergencyCancellable(String receptionId) {
+        if (emergencyCancelCheckBusinessDelegate.isEmpty()) {
+            return;
+        }
+        EmergencyCancellableResponsedto result;
+        try {
+            result = emergencyCancelCheckBusinessDelegate.get().getCancellable(receptionId);
+        } catch (RestClientException e) {
+            log.warn("응급 취소 가능 여부 조회 실패 - 취소를 막는다(fail-closed). receptionId={}", receptionId, e);
+            throw new EmergencyCancelCheckFailedException(receptionId, e.getMessage());
+        }
+        if (result == null) {
+            throw new EmergencyCancelCheckFailedException(receptionId, "응답 없음");
+        }
+        if (result.isCancellable()) {
+            return;
+        }
+        if (EMERGENCY_CANCEL_HAS_RECORDS.equals(result.getReasonCode())) {
+            throw new EmergencyCancelNotAllowedException(receptionId, result.getRecords());
+        }
+        // CANNOT_VERIFY 및 그 밖의 취소 불가 응답 — 잠시 뒤 다시 시도하게 한다.
+        throw new EmergencyCancelCheckFailedException(receptionId, result.getReasonCode());
+    }
+
     /**
      * 외래 접수 취소 전, 외래에서 진료가 시작되었는지 확인한다.
      * 외래는 진행 중(IN_PROGRESS)·완료(COMPLETED)인 접수의 취소 메시지를 받아도 상태를 바꾸지 않으므로 여기서 먼저 막는다.
@@ -697,30 +774,6 @@ public class ReceptionServiceImpl implements ReceptionService {
         if (status.isInProgress() || OUTPATIENT_STARTED_STATUSES.contains(status.getStatus())) {
             throw new OutpatientCancelNotAllowedException(receptionId, status.getStatus());
         }
-    }
-
-    private void checkEmergencyCancellable(String receptionId) {
-        if (emergencyCancelCheckBusinessDelegate.isEmpty()) {
-            return;
-        }
-        EmergencyCancellableResponsedto result;
-        try {
-            result = emergencyCancelCheckBusinessDelegate.get().getCancellable(receptionId);
-        } catch (RestClientException e) {
-            log.warn("응급 취소 가능 여부 조회 실패 - 취소를 막는다(fail-closed). receptionId={}", receptionId, e);
-            throw new EmergencyCancelCheckFailedException(receptionId, e.getMessage());
-        }
-        if (result == null) {
-            throw new EmergencyCancelCheckFailedException(receptionId, "응답 없음");
-        }
-        if (result.isCancellable()) {
-            return;
-        }
-        if (EMERGENCY_CANCEL_HAS_RECORDS.equals(result.getReasonCode())) {
-            throw new EmergencyCancelNotAllowedException(receptionId, result.getRecords());
-        }
-        // CANNOT_VERIFY 및 그 밖의 취소 불가 응답 — 잠시 뒤 다시 시도하게 한다.
-        throw new EmergencyCancelCheckFailedException(receptionId, result.getReasonCode());
     }
 
     /**
