@@ -1,9 +1,6 @@
-from openjdk:17-ea-jdk-slim
+FROM eclipse-temurin:17-jre
+WORKDIR /app
+COPY build/libs/*-SNAPSHOT.jar /app/app.jar
 
-run mkdir /app
-workdir /app
-
-add ./build/libs/*.jar /app/app.jar
-
-expose 8083
-entrypoint ["java", "-jar", "app.jar", "--server.port=8083"]
+EXPOSE 8083
+ENTRYPOINT ["java", "-jar", "app.jar", "--server.port=8083"]

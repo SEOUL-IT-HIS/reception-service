@@ -68,7 +68,7 @@ cb2:
 admin:
   # compose 바깥 포트(18080)
   url: http://localhost:9191
-  #url: http://192.168.1.126:18080
+  #url: http://192.168.1.126:18090
 
 emergency:
   # 응급 서비스(emergency-service) base URL — compose 바깥 포트(18089)
